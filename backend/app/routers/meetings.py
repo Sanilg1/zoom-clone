@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 
 from app import events
 from app.db import get_db
-from app.deps import get_current_user
+from app.deps import get_current_user, get_optional_user
 from app.models import Meeting, User
 from app.schemas import (
     HostAction,
@@ -71,9 +71,14 @@ def read_meeting(code: str, db: Session = Depends(get_db)) -> Meeting:
 
 
 @router.post("/{code}/join", response_model=JoinResponse)
-def join(code: str, body: JoinRequest, db: Session = Depends(get_db)) -> JoinResponse:
+def join(
+    code: str,
+    body: JoinRequest,
+    db: Session = Depends(get_db),
+    user: User | None = Depends(get_optional_user),
+) -> JoinResponse:
     meeting = service.get_meeting_or_404(db, code)
-    participant = service.join_meeting(db, meeting, body)
+    participant = service.join_meeting(db, meeting, body, user)
     return JoinResponse(
         participant=ParticipantOut.model_validate(participant),
         meeting=MeetingOut.model_validate(meeting),
@@ -112,6 +117,20 @@ async def mute_one(
     participant = service.mute_participant(db, service.get_participant_or_404(meeting, participant_id))
     await rooms.send(meeting.code, participant.id, events.MUTED_BY_HOST)
     await rooms.broadcast(meeting.code, events.participant_updated(participant))
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.post("/{code}/participants/{participant_id}/make-host", status_code=status.HTTP_204_NO_CONTENT)
+async def make_host(
+    code: str, participant_id: int, body: HostAction, db: Session = Depends(get_db)
+) -> Response:
+    meeting = service.get_meeting_or_404(db, code)
+    service.require_host(meeting, body.host_key)
+    participant = service.get_participant_or_404(meeting, participant_id)
+    changed, new_key = service.make_host(db, meeting, participant)
+    await rooms.send(meeting.code, participant.id, events.host_granted(new_key))
+    for person in changed:
+        await rooms.broadcast(meeting.code, events.participant_updated(person))
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 

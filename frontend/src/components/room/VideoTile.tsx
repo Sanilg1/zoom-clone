@@ -3,7 +3,8 @@
 import { MicOff } from "lucide-react";
 import { useEffect, useRef } from "react";
 
-import { useIsSpeaking } from "@/hooks/useIsSpeaking";
+import { MicLevelIcon } from "@/components/ui/icons";
+import { SPEAKING_LEVEL, useAudioLevel } from "@/hooks/useAudioLevel";
 
 export interface TileData {
   id: number;
@@ -26,7 +27,8 @@ interface VideoTileProps {
 
 export function VideoTile({ tile, forceVideo = false, fit = "cover", className = "" }: VideoTileProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
-  const speaking = useIsSpeaking(tile.stream, tile.micOn);
+  const level = useAudioLevel(tile.stream, tile.micOn);
+  const speaking = level >= SPEAKING_LEVEL;
   const showVideo = forceVideo || tile.videoOn;
 
   useEffect(() => {
@@ -40,12 +42,12 @@ export function VideoTile({ tile, forceVideo = false, fit = "cover", className =
         speaking ? "ring-[3px] ring-zoom-green" : ""
       } ${className}`}
     >
-      {/* Always rendered (just hidden) so remote audio keeps playing when video is off. */}
+      {/* Video only: sound is played by <RemoteAudio>, so this element is always muted. */}
       <video
         ref={videoRef}
         autoPlay
         playsInline
-        muted={tile.isSelf}
+        muted
         className={`h-full w-full ${fit === "contain" ? "object-contain" : "object-cover"} ${
           tile.isSelf && !forceVideo ? "mirror" : ""
         } ${showVideo ? "" : "invisible"}`}
@@ -58,7 +60,11 @@ export function VideoTile({ tile, forceVideo = false, fit = "cover", className =
       )}
 
       <div className="absolute bottom-1.5 left-1.5 flex max-w-[calc(100%-12px)] items-center gap-1 rounded bg-black/60 px-1.5 py-0.5 text-xs text-white">
-        {!tile.micOn && <MicOff size={12} className="shrink-0 text-zoom-red" />}
+        {tile.micOn ? (
+          <MicLevelIcon level={level} size={13} className="shrink-0" />
+        ) : (
+          <MicOff size={12} className="shrink-0 text-zoom-red" />
+        )}
         <span className="truncate">{tile.name}</span>
       </div>
 

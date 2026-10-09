@@ -17,3 +17,6 @@ export const ICE_SERVERS: RTCIceServer[] = [
       ]
     : []),
 ];
+
+// Public demo account seeded by the backend (backend/app/config.py), so reviewers can sign in quickly.
+export const DEMO_ACCOUNT = { email: "sanil@zoomclone.dev", password: "zoomdemo123" };

@@ -1,9 +1,11 @@
 "use client";
 
-import { MessageSquare, Mic, MicOff, MonitorUp, Users, Video, VideoOff } from "lucide-react";
-import { useState, type ReactNode } from "react";
+import { MessageSquare, MicOff, MonitorUp, Users, Video, VideoOff } from "lucide-react";
+import { useRef, useState, type ReactNode } from "react";
 
-import { ReactionsIcon } from "@/components/ui/icons";
+import { MicLevelIcon, ReactionsIcon } from "@/components/ui/icons";
+import { useAudioLevel } from "@/hooks/useAudioLevel";
+import { useDismiss } from "@/hooks/useDismiss";
 
 export const REACTIONS = ["👏", "👍", "❤️", "😂", "😮", "🎉"];
 
@@ -12,24 +14,44 @@ interface ControlBarProps {
   videoOn: boolean;
   canUseMic: boolean;
   canUseVideo: boolean;
+  /** Our own mic stream, for the level animation on the Mute button. */
+  micStream: MediaStream | null;
   sharing: boolean;
   participantCount: number;
   unreadMessages: number;
   activePanel: "participants" | "chat" | null;
   isHost: boolean;
+  /** Everyone else in the meeting (the host picks a new host from this list when leaving). */
+  others: { id: number; name: string }[];
   onToggleMic: () => void;
   onToggleVideo: () => void;
   onToggleShare: () => void;
   onTogglePanel: (panel: "participants" | "chat") => void;
   onReaction: (emoji: string) => void;
   onLeave: () => void;
+  onAssignHostAndLeave: (participantId: number) => void;
   onEndForAll: () => void;
 }
 
+type Menu = "reactions" | "leave" | "assign" | null;
+
 /** The toolbar along the bottom of the meeting, laid out like Zoom's. */
 export function ControlBar(props: ControlBarProps) {
-  const [menu, setMenu] = useState<"reactions" | "leave" | null>(null);
+  const [menu, setMenu] = useState<Menu>(null);
   const toggleMenu = (name: "reactions" | "leave") => setMenu((current) => (current === name ? null : name));
+  const close = () => setMenu(null);
+
+  // Each popup closes when you click anywhere outside it (or its button), or press Escape.
+  const reactionsRef = useRef<HTMLDivElement>(null);
+  const leaveRef = useRef<HTMLDivElement>(null);
+  useDismiss(reactionsRef, menu === "reactions", close);
+  useDismiss(leaveRef, menu === "leave" || menu === "assign", close);
+
+  function handleLeave() {
+    // Like Zoom: a host leaving while others stay picks who takes over.
+    if (props.isHost && props.others.length > 0) setMenu("assign");
+    else props.onLeave();
+  }
 
   return (
     <footer className="relative z-20 flex h-[68px] shrink-0 items-center justify-between gap-1 bg-room px-2 text-white sm:px-4">
@@ -38,7 +60,7 @@ export function ControlBar(props: ControlBarProps) {
           label={props.micOn ? "Mute" : "Unmute"}
           onClick={props.onToggleMic}
           disabled={!props.canUseMic}
-          icon={props.micOn ? <Mic size={22} /> : <MicOff size={22} className="text-zoom-red" />}
+          icon={props.micOn ? <LiveMicIcon stream={props.micStream} /> : <MicOff size={22} className="text-zoom-red" />}
         />
         <ToolButton
           label={props.videoOn ? "Stop Video" : "Start Video"}
@@ -81,7 +103,7 @@ export function ControlBar(props: ControlBarProps) {
           icon={<MonitorUp size={22} className={props.sharing ? "text-zoom-red" : "text-zoom-green"} />}
           className="hidden sm:flex"
         />
-        <div className="relative">
+        <div className="relative" ref={reactionsRef}>
           <ToolButton
             label="Reactions"
             active={menu === "reactions"}
@@ -96,7 +118,7 @@ export function ControlBar(props: ControlBarProps) {
                     key={emoji}
                     onClick={() => {
                       props.onReaction(emoji);
-                      setMenu(null);
+                      close();
                     }}
                     className="rounded-lg p-1.5 text-2xl hover:bg-room-hover"
                     aria-label={`React with ${emoji}`}
@@ -110,26 +132,25 @@ export function ControlBar(props: ControlBarProps) {
         </div>
       </div>
 
-      <div className="relative">
+      <div className="relative" ref={leaveRef}>
         <button
           onClick={() => toggleMenu("leave")}
+          aria-expanded={menu === "leave" || menu === "assign"}
           className="rounded-lg bg-zoom-red px-3 py-1.5 text-sm font-bold hover:bg-[#c51f1f] sm:px-4"
         >
           {props.isHost ? "End" : "Leave"}
         </button>
+
         {menu === "leave" && (
           <Popover className="right-0 w-56">
             <div className="flex flex-col gap-2 p-3">
               {props.isHost && (
-                <button
-                  onClick={props.onEndForAll}
-                  className="rounded-lg bg-zoom-red py-2 text-sm font-bold hover:bg-[#c51f1f]"
-                >
+                <button onClick={props.onEndForAll} className="rounded-lg bg-zoom-red py-2 text-sm font-bold hover:bg-[#c51f1f]">
                   End Meeting for All
                 </button>
               )}
               <button
-                onClick={props.onLeave}
+                onClick={handleLeave}
                 className={`rounded-lg py-2 text-sm font-bold ${
                   props.isHost ? "bg-room-hover hover:bg-[#4a4a4a]" : "bg-zoom-red hover:bg-[#c51f1f]"
                 }`}
@@ -139,9 +160,40 @@ export function ControlBar(props: ControlBarProps) {
             </div>
           </Popover>
         )}
+
+        {menu === "assign" && (
+          <Popover className="right-0 w-64">
+            <div className="flex flex-col gap-1 p-3">
+              <p className="px-1 pb-1 text-sm font-bold">Assign a new host</p>
+              <p className="px-1 pb-2 text-xs text-white/60">Choose who takes over before you leave.</p>
+              <ul className="flex max-h-56 flex-col gap-1 overflow-y-auto">
+                {props.others.map((person) => (
+                  <li key={person.id}>
+                    <button
+                      onClick={() => props.onAssignHostAndLeave(person.id)}
+                      className="flex w-full items-center justify-between gap-2 rounded-lg px-2 py-2 text-left text-sm hover:bg-room-hover"
+                    >
+                      <span className="truncate">{person.name}</span>
+                      <span className="shrink-0 text-xs font-bold text-[#4c8dff]">Assign and Leave</span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+              <button onClick={() => setMenu("leave")} className="mt-1 rounded-lg py-1.5 text-xs text-white/70 hover:bg-room-hover">
+                Back
+              </button>
+            </div>
+          </Popover>
+        )}
       </div>
     </footer>
   );
+}
+
+/** Mic icon that fills with green as we speak. Its own component so only it re-renders 10×/second. */
+function LiveMicIcon({ stream }: { stream: MediaStream | null }) {
+  const level = useAudioLevel(stream, true);
+  return <MicLevelIcon level={level} size={22} />;
 }
 
 interface ToolButtonProps {

@@ -3,6 +3,7 @@
 
 const hostKeyName = (code: string) => `zoom.hostKey.${code}`;
 const DISPLAY_NAME = "zoom.displayName";
+const AUTH_TOKEN = "zoom.authToken";
 
 function safe<T>(fn: () => T, fallback: T): T {
   try {
@@ -19,9 +20,17 @@ function safe<T>(fn: () => T, fallback: T): T {
 export const hostKeys = {
   get: (code: string) => safe(() => sessionStorage.getItem(hostKeyName(code)), null),
   set: (code: string, key: string) => safe(() => sessionStorage.setItem(hostKeyName(code), key), undefined),
+  clear: (code: string) => safe(() => sessionStorage.removeItem(hostKeyName(code)), undefined),
 };
 
 export const rememberedName = {
   get: () => safe(() => localStorage.getItem(DISPLAY_NAME), null),
   set: (name: string) => safe(() => localStorage.setItem(DISPLAY_NAME, name), undefined),
+};
+
+/** Session token from sign-in. localStorage keeps you signed in across tabs and restarts. */
+export const authToken = {
+  get: () => safe(() => localStorage.getItem(AUTH_TOKEN), null),
+  set: (token: string) => safe(() => localStorage.setItem(AUTH_TOKEN, token), undefined),
+  clear: () => safe(() => localStorage.removeItem(AUTH_TOKEN), undefined),
 };

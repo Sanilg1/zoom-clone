@@ -4,8 +4,8 @@ import Link from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 
+import { useAuth } from "@/components/auth/AuthProvider";
 import { Spinner } from "@/components/ui/Spinner";
-import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { useLocalMedia } from "@/hooks/useLocalMedia";
 import { useResetOnHide } from "@/hooks/useResetOnHide";
 import type { ExitReason } from "@/hooks/useMeetingRoom";
@@ -28,7 +28,7 @@ type Stage =
 export function MeetingFlow() {
   const { code } = useParams<{ code: string }>();
   const searchParams = useSearchParams();
-  const user = useCurrentUser();
+  const { user } = useAuth();
 
   const [meeting, setMeeting] = useState<Meeting | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -37,8 +37,15 @@ export function MeetingFlow() {
   useResetOnHide(() => setStage({ kind: "pre-join" }));
   // Name used last time, so "Rejoin" keeps it.
   const [joinedName, setJoinedName] = useState<string | null>(null);
-  // Read once: the host key is only present in the tab that created/started the meeting.
-  const [hostKey] = useState(() => hostKeys.get(code));
+  // The host key lives in this tab's sessionStorage: set when the meeting was created or started
+  // here, replaced if the host hands the role to us, cleared if we hand it to someone else.
+  const [hostKey, setHostKey] = useState(() => hostKeys.get(code));
+
+  function updateHostKey(key: string | null) {
+    if (key) hostKeys.set(code, key);
+    else hostKeys.clear(code);
+    setHostKey(key);
+  }
 
   const media = useLocalMedia(meeting !== null && stage.kind !== "exited", {
     audio: searchParams.get("audio") !== "off",
@@ -93,6 +100,7 @@ export function MeetingFlow() {
         self={stage.self}
         hostKey={hostKey}
         media={media}
+        onHostKey={updateHostKey}
         onExit={(reason) => setStage({ kind: "exited", reason })}
       />
     );

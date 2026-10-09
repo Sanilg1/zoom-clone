@@ -26,6 +26,11 @@ def chat(message: ChatMessage) -> dict[str, Any]:
     return {"type": "chat", "message": ChatMessageOut.model_validate(message).model_dump(mode="json")}
 
 
+def host_granted(host_key: str) -> dict[str, Any]:
+    """Sent only to the new host: the key that proves host rights from now on."""
+    return {"type": "host-granted", "host_key": host_key}
+
+
 MUTED_BY_HOST = {"type": "muted-by-host"}
 REMOVED = {"type": "removed"}
 MEETING_ENDED = {"type": "meeting-ended"}

@@ -1,5 +1,6 @@
 """Request and response bodies for the REST API."""
 
+import re
 from datetime import datetime
 
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, computed_field, field_validator
@@ -21,6 +22,46 @@ class UserOut(ORMModel):
     email: str
     avatar_color: str
     timezone: str
+
+
+# ---------- auth ----------
+
+EMAIL_PATTERN = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+
+
+def _normalise_email(value: str) -> str:
+    value = value.strip().lower()
+    if not EMAIL_PATTERN.match(value):
+        raise ValueError("Enter a valid email address")
+    return value
+
+
+class SignInRequest(BaseModel):
+    email: str = Field(max_length=255)
+    password: str = Field(min_length=1, max_length=128)
+
+    @field_validator("email")
+    @classmethod
+    def check_email(cls, value: str) -> str:
+        return _normalise_email(value)
+
+
+class SignUpRequest(SignInRequest):
+    name: str = Field(min_length=1, max_length=100)
+    password: str = Field(min_length=8, max_length=128)
+
+    @field_validator("name")
+    @classmethod
+    def strip_name(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("Name cannot be blank")
+        return value
+
+
+class AuthResponse(BaseModel):
+    token: str
+    user: UserOut
 
 
 # ---------- meetings ----------

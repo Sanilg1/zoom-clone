@@ -148,11 +148,12 @@ def list_recent(db: Session, user: User, limit: int = 10) -> list[Meeting]:
 # ---------- joining and leaving ----------
 
 
-def join_meeting(db: Session, meeting: Meeting, data: JoinRequest) -> Participant:
+def join_meeting(db: Session, meeting: Meeting, data: JoinRequest, user: User | None) -> Participant:
+    """`user` is the signed-in user, or None for a guest who only gave a display name."""
     is_host = data.host_key is not None and secrets.compare_digest(data.host_key, meeting.host_key)
     participant = Participant(
         meeting=meeting,
-        user_id=meeting.host_id if is_host else None,
+        user_id=user.id if user else (meeting.host_id if is_host else None),
         display_name=data.display_name,
         role=ParticipantRole.HOST if is_host else ParticipantRole.ATTENDEE,
         is_muted=data.is_muted,
@@ -227,6 +228,27 @@ def remove_participant(db: Session, participant: Participant) -> None:
     participant.is_removed = True
     participant.left_at = participant.left_at or utcnow()
     db.commit()
+
+
+def make_host(db: Session, meeting: Meeting, participant: Participant) -> tuple[list[Participant], str]:
+    """Hands the host role to `participant`.
+
+    Every current host becomes an attendee and the meeting gets a new host key, so the old key
+    stops working. Returns the participants whose role changed and the new key (which only the
+    new host receives).
+    """
+    if not participant.is_active:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "This participant is no longer in the meeting")
+    if participant.role == ParticipantRole.HOST:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "This participant is already the host")
+
+    changed = [p for p in active_participants(meeting) if p.role == ParticipantRole.HOST]
+    for old_host in changed:
+        old_host.role = ParticipantRole.ATTENDEE
+    participant.role = ParticipantRole.HOST
+    meeting.host_key = secrets.token_urlsafe(24)
+    db.commit()
+    return [*changed, participant], meeting.host_key
 
 
 def add_chat_message(db: Session, participant: Participant, body: str) -> ChatMessage | None:

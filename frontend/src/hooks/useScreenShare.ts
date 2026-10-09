@@ -3,24 +3,19 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 /**
- * Screen sharing: asks the browser for a screen/window, sends it in place of the camera, and
- * switches back to the camera when sharing stops (from our button or the browser's own one).
+ * Screen sharing: asks the browser for a screen or window and sends it as our video. When sharing
+ * stops (our button or the browser's own "Stop sharing"), `screenStream` becomes null and the
+ * meeting room switches the outgoing video back to the camera.
  */
-export function useScreenShare(
-  setOutgoingVideo: (track: MediaStreamTrack | null) => Promise<void>,
-  cameraTrack: MediaStreamTrack | null,
-) {
+export function useScreenShare(setOutgoingVideo: (track: MediaStreamTrack | null) => Promise<void>) {
   const [screenStream, setScreenStream] = useState<MediaStream | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
 
   const stop = useCallback(() => {
-    const display = streamRef.current;
-    if (!display) return;
-    display.getTracks().forEach((track) => track.stop());
+    streamRef.current?.getTracks().forEach((track) => track.stop());
     streamRef.current = null;
     setScreenStream(null);
-    void setOutgoingVideo(cameraTrack);
-  }, [setOutgoingVideo, cameraTrack]);
+  }, []);
 
   const start = useCallback(async () => {
     if (!navigator.mediaDevices?.getDisplayMedia) {

@@ -3,13 +3,14 @@
 import { CalendarDays, MonitorUp, Plus, Video } from "lucide-react";
 import { useState } from "react";
 
+import { useAuth } from "@/components/auth/AuthProvider";
+import { RequireAuth } from "@/components/auth/RequireAuth";
 import { ActionTile } from "@/components/home/ActionTile";
 import { RecentMeetings } from "@/components/home/RecentMeetings";
 import { UpcomingMeetings } from "@/components/home/UpcomingMeetings";
 import { Navbar } from "@/components/layout/Navbar";
 import { JoinMeetingModal } from "@/components/meetings/JoinMeetingModal";
 import { ScheduleMeetingModal } from "@/components/meetings/ScheduleMeetingModal";
-import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { useDashboardMeetings } from "@/hooks/useDashboardMeetings";
 import { useResetOnHide } from "@/hooks/useResetOnHide";
 import { useStartMeeting } from "@/hooks/useStartMeeting";
@@ -17,7 +18,15 @@ import { useStartMeeting } from "@/hooks/useStartMeeting";
 type Dialog = "join" | "share" | "schedule" | null;
 
 export default function HomePage() {
-  const user = useCurrentUser();
+  return (
+    <RequireAuth>
+      <Dashboard />
+    </RequireAuth>
+  );
+}
+
+function Dashboard() {
+  const { user } = useAuth();
   const { upcoming, recent, loading, error, reload } = useDashboardMeetings();
   const { startInstantMeeting, enterAsHost, starting, error: startError } = useStartMeeting();
   const [dialog, setDialog] = useState<Dialog>(null);

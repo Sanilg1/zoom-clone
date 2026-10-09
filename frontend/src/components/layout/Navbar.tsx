@@ -2,11 +2,13 @@
 
 import { Clock, House, Search, Settings } from "lucide-react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { usePathname, useRouter } from "next/navigation";
+import { useRef, useState } from "react";
 
+import { useAuth } from "@/components/auth/AuthProvider";
 import { Avatar } from "@/components/ui/Avatar";
 import { ZoomLogo } from "@/components/ui/icons";
+import { useDismiss } from "@/hooks/useDismiss";
 import { useResetOnHide } from "@/hooks/useResetOnHide";
 import type { User } from "@/lib/types";
 
@@ -69,15 +71,16 @@ function ProfileMenu({ user }: { user: User | null }) {
   const [open, setOpen] = useState(false);
   useResetOnHide(() => setOpen(false));
   const menuRef = useRef<HTMLDivElement>(null);
+  const { signOut } = useAuth();
+  const router = useRouter();
 
-  useEffect(() => {
-    if (!open) return;
-    const onClick = (event: MouseEvent) => {
-      if (!menuRef.current?.contains(event.target as Node)) setOpen(false);
-    };
-    document.addEventListener("mousedown", onClick);
-    return () => document.removeEventListener("mousedown", onClick);
-  }, [open]);
+  async function handleSignOut() {
+    setOpen(false);
+    await signOut();
+    router.replace("/signin");
+  }
+
+  useDismiss(menuRef, open, () => setOpen(false));
 
   const name = user?.name ?? "";
 
@@ -105,7 +108,7 @@ function ProfileMenu({ user }: { user: User | null }) {
               </p>
             </div>
           </div>
-          {["Settings", "Help", "Sign out"].map((item) => (
+          {["Settings", "Help"].map((item) => (
             <button
               key={item}
               className="block w-full px-4 py-2.5 text-left text-sm hover:bg-surface"
@@ -114,6 +117,12 @@ function ProfileMenu({ user }: { user: User | null }) {
               {item}
             </button>
           ))}
+          <button
+            className="block w-full border-t border-line px-4 py-2.5 text-left text-sm hover:bg-surface"
+            onClick={handleSignOut}
+          >
+            Sign out
+          </button>
         </div>
       )}
     </div>

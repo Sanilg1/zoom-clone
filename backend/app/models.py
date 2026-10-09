@@ -1,5 +1,6 @@
 """SQLAlchemy models.
 
+users 1 ── * sessions          (one row per signed-in device)
 users 1 ── * meetings          (a user hosts many meetings)
 meetings 1 ── * participants   (one row per person per time they join)
 users 1 ── * participants      (optional: guests have no user row)
@@ -43,11 +44,30 @@ class User(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     name: Mapped[str] = mapped_column(String(100))
     email: Mapped[str] = mapped_column(String(255), unique=True)
+    # scrypt hash ("scrypt$salt$hash"); null for seeded sample attendees, who cannot sign in.
+    password_hash: Mapped[str | None] = mapped_column(String(255))
     avatar_color: Mapped[str] = mapped_column(String(7), default="#0E71EB")
     timezone: Mapped[str] = mapped_column(String(64), default="Asia/Kolkata")
     created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utcnow)
 
     hosted_meetings: Mapped[list["Meeting"]] = relationship(back_populates="host")
+    sessions: Mapped[list["AuthSession"]] = relationship(
+        back_populates="user", cascade="all, delete-orphan"
+    )
+
+
+class AuthSession(Base):
+    """A signed-in browser. The token itself is never stored, only its SHA-256 hash."""
+
+    __tablename__ = "sessions"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime, default=utcnow)
+    expires_at: Mapped[datetime] = mapped_column(UTCDateTime)
+
+    user: Mapped[User] = relationship(back_populates="sessions")
 
 
 class Meeting(Base):

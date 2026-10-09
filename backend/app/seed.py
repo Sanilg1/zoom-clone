@@ -13,7 +13,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.db import Base, SessionLocal, engine, utcnow
-from app.deps import DEFAULT_USER_EMAIL
+from app.config import DEMO_EMAIL, DEMO_PASSWORD
 from app.models import (
     ChatMessage,
     Meeting,
@@ -23,10 +23,11 @@ from app.models import (
     ParticipantRole,
     User,
 )
+from app.services.auth import hash_password
 from app.services.meetings import generate_unique_code
 
 USERS = [
-    ("Sanil", DEFAULT_USER_EMAIL, "#0E71EB"),  # the logged-in default user
+    ("Sanil", DEMO_EMAIL, "#0E71EB"),  # the demo account (signs in with DEMO_PASSWORD)
     ("Aarav Mehta", "aarav@zoomclone.dev", "#E8590C"),
     ("Priya Sharma", "priya@zoomclone.dev", "#2F9E44"),
     ("Rohan Verma", "rohan@zoomclone.dev", "#9C36B5"),
@@ -66,6 +67,7 @@ def seed(db: Session) -> None:
     users = [User(name=name, email=email, avatar_color=color) for name, email, color in USERS]
     db.add_all(users)
     me = users[0]
+    me.password_hash = hash_password(DEMO_PASSWORD)  # the sample attendees have no password
 
     for title, description, days, at, minutes in UPCOMING:
         db.add(

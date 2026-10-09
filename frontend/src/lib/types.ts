@@ -57,6 +57,11 @@ export interface JoinResponse {
   meeting: Meeting;
 }
 
+export interface AuthResponse {
+  token: string;
+  user: User;
+}
+
 export interface ScheduleMeetingInput {
   title: string;
   description: string;
@@ -73,6 +78,7 @@ export type ServerEvent =
   | { type: "signal"; from: number; data: SignalData }
   | { type: "chat"; message: ChatMessage }
   | { type: "reaction"; participant_id: number; emoji: string }
+  | { type: "host-granted"; host_key: string }
   | { type: "muted-by-host" }
   | { type: "removed" }
   | { type: "meeting-ended" };

@@ -3,10 +3,11 @@
 import { CalendarDays, Plus, RotateCw } from "lucide-react";
 import { useState, type ReactNode } from "react";
 
+import { useAuth } from "@/components/auth/AuthProvider";
+import { RequireAuth } from "@/components/auth/RequireAuth";
 import { Navbar } from "@/components/layout/Navbar";
 import { MeetingDetails } from "@/components/meetings/MeetingDetails";
 import { ScheduleMeetingModal } from "@/components/meetings/ScheduleMeetingModal";
-import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { useDashboardMeetings } from "@/hooks/useDashboardMeetings";
 import { useNow } from "@/hooks/useNow";
 import { useResetOnHide } from "@/hooks/useResetOnHide";
@@ -19,7 +20,15 @@ type Tab = "upcoming" | "previous";
 
 /** Zoom's "Meetings" tab: a list on the left, the selected meeting's details on the right. */
 export default function MeetingsPage() {
-  const user = useCurrentUser();
+  return (
+    <RequireAuth>
+      <MeetingsTab />
+    </RequireAuth>
+  );
+}
+
+function MeetingsTab() {
+  const { user } = useAuth();
   const now = useNow(60_000);
   const { upcoming, recent, loading, error, reload } = useDashboardMeetings();
   const { enterAsHost } = useStartMeeting();

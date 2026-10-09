@@ -2,14 +2,20 @@
 
 import { useEffect, useState } from "react";
 
-const LEVEL_THRESHOLD = 0.04; // RMS of the waveform, 0..1
-const POLL_MS = 200;
+const POLL_MS = 100;
+// RMS of normal speech is roughly 0.02-0.2; scale it so speaking fills most of the mic icon.
+const GAIN = 5;
+/** Level above which someone counts as speaking (drives the green tile border). */
+export const SPEAKING_LEVEL = 0.2;
 
 let sharedContext: AudioContext | null = null;
 
-/** True while the stream's audio is loud enough to count as talking (for the speaker highlight). */
-export function useIsSpeaking(stream: MediaStream | null, enabled: boolean): boolean {
-  const [speaking, setSpeaking] = useState(false);
+/**
+ * Current loudness of the stream's audio, 0 (silent) to 1 (loud), updated 10 times a second.
+ * Used for the mic level animation and the active-speaker highlight.
+ */
+export function useAudioLevel(stream: MediaStream | null, enabled: boolean): number {
+  const [level, setLevel] = useState(0);
 
   useEffect(() => {
     const track = stream?.getAudioTracks()[0];
@@ -32,7 +38,9 @@ export function useIsSpeaking(stream: MediaStream | null, enabled: boolean): boo
         const centered = (sample - 128) / 128;
         sum += centered * centered;
       }
-      setSpeaking(Math.sqrt(sum / samples.length) > LEVEL_THRESHOLD);
+      const rms = Math.sqrt(sum / samples.length);
+      // Round so React skips re-renders while the level is steady.
+      setLevel(Math.min(1, Math.round(rms * GAIN * 10) / 10));
     }, POLL_MS);
 
     return () => {
@@ -41,5 +49,5 @@ export function useIsSpeaking(stream: MediaStream | null, enabled: boolean): boo
     };
   }, [stream, enabled]);
 
-  return enabled && speaking;
+  return enabled ? level : 0;
 }

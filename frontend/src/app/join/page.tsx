@@ -6,7 +6,7 @@ import { Suspense } from "react";
 
 import { JoinMeetingForm } from "@/components/meetings/JoinMeetingForm";
 import { ZoomLogo } from "@/components/ui/icons";
-import { useCurrentUser } from "@/hooks/useCurrentUser";
+import { useAuth } from "@/components/auth/AuthProvider";
 
 /** Standalone join page (like zoom.us/join), also reachable as /join?code=… */
 export default function JoinPage() {
@@ -31,6 +31,6 @@ export default function JoinPage() {
 
 function JoinFormWithParams() {
   const searchParams = useSearchParams();
-  const user = useCurrentUser();
+  const { user } = useAuth();
   return <JoinMeetingForm defaultCode={searchParams.get("code") ?? ""} defaultName={user?.name} />;
 }

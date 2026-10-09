@@ -1,8 +1,9 @@
 "use client";
 
 import { Info, ShieldCheck } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
+import { useDismiss } from "@/hooks/useDismiss";
 import type { LocalMedia } from "@/hooks/useLocalMedia";
 import { useMeetingRoom, type ExitReason } from "@/hooks/useMeetingRoom";
 import { useNow } from "@/hooks/useNow";
@@ -14,6 +15,7 @@ import { ChatPanel } from "./ChatPanel";
 import { ControlBar } from "./ControlBar";
 import { MeetingInfo } from "./MeetingInfo";
 import { ParticipantsPanel, type PanelParticipant } from "./ParticipantsPanel";
+import { RemoteAudio } from "./RemoteAudio";
 import { VideoGrid } from "./VideoGrid";
 import type { TileData } from "./VideoTile";
 
@@ -22,6 +24,7 @@ interface MeetingRoomProps {
   self: Participant;
   hostKey: string | null;
   media: LocalMedia;
+  onHostKey: (hostKey: string | null) => void;
   onExit: (reason: ExitReason) => void;
 }
 
@@ -34,12 +37,13 @@ function elapsed(since: string | null, now: Date | null): string {
   return `${pad(Math.floor(total / 3600))}:${pad(Math.floor((total % 3600) / 60))}:${pad(total % 60)}`;
 }
 
-export function MeetingRoom({ meeting, self, hostKey, media, onExit }: MeetingRoomProps) {
-  const isHost = self.role === "host";
+export function MeetingRoom({ meeting, self: joinedAs, hostKey, media, onHostKey, onExit }: MeetingRoomProps) {
   const { setAudioOn } = media;
   const [toast, showToast] = useToast();
   const [panel, setPanel] = useState<Panel>(null);
   const [infoOpen, setInfoOpen] = useState(false);
+  const infoRef = useRef<HTMLDivElement>(null);
+  useDismiss(infoRef, infoOpen, () => setInfoOpen(false));
   const [seenMessages, setSeenMessages] = useState(0);
   const now = useNow();
 
@@ -48,10 +52,33 @@ export function MeetingRoom({ meeting, self, hostKey, media, onExit }: MeetingRo
     showToast("The host has muted you");
   }, [setAudioOn, showToast]);
 
-  const room = useMeetingRoom({ code: meeting.code, self, localStream: media.stream, onMutedByHost, onExit });
-  const cameraTrack = media.stream?.getVideoTracks()[0] ?? null;
-  const screen = useScreenShare(room.setOutgoingVideo, cameraTrack);
+  const handleHostKey = useCallback(
+    (key: string | null) => {
+      onHostKey(key);
+      if (key) showToast("You are now the host");
+    },
+    [onHostKey, showToast],
+  );
+
+  const room = useMeetingRoom({
+    code: meeting.code,
+    self: joinedAs,
+    localStream: media.stream,
+    onMutedByHost,
+    onHostKey: handleHostKey,
+    onExit,
+  });
+  const self = room.self; // kept up to date by the server (e.g. role after a host handover)
+  const isHost = self.role === "host";
+  const screen = useScreenShare(room.setOutgoingVideo);
   const sharing = screen.screenStream !== null;
+
+  // Send the camera to everyone (or nothing while it is off). Screen sharing takes over the
+  // outgoing video while it runs; when it stops, this puts the camera back.
+  const { setOutgoingVideo } = room;
+  useEffect(() => {
+    if (!sharing) void setOutgoingVideo(media.videoTrack);
+  }, [media.videoTrack, sharing, setOutgoingVideo]);
 
   // Tell everyone else when our mic, camera or screen share changes.
   const { sendMediaState, connected } = room;
@@ -127,14 +154,27 @@ export function MeetingRoom({ meeting, self, hostKey, media, onExit }: MeetingRo
     }
   }
 
-  async function hostAction(action: (key: string) => Promise<void>, success?: string) {
-    if (!hostKey) return;
+  /** Runs a host-only API call with our host key; returns whether it succeeded. */
+  async function hostAction(action: (key: string) => Promise<void>, success?: string): Promise<boolean> {
+    if (!hostKey) return false;
     try {
       await action(hostKey);
       if (success) showToast(success);
+      return true;
     } catch (err) {
       showToast((err as Error).message);
+      return false;
     }
+  }
+
+  const nameOf = (id: number) => room.peers.find((p) => p.participant.id === id)?.participant.display_name ?? "They";
+
+  function makeHost(id: number) {
+    return hostAction((key) => api.makeHost(meeting.code, id, key), `${nameOf(id)} is now the host`);
+  }
+
+  async function assignHostAndLeave(id: number) {
+    if (await makeHost(id)) room.leave();
   }
 
   async function copyInvite() {
@@ -149,15 +189,18 @@ export function MeetingRoom({ meeting, self, hostKey, media, onExit }: MeetingRo
   return (
     <div className="flex h-dvh flex-col overflow-hidden bg-room text-white">
       <header className="relative flex h-10 shrink-0 items-center justify-between px-2">
-        <button
-          onClick={() => setInfoOpen((open) => !open)}
-          className="flex items-center gap-1 rounded p-1.5 text-zoom-green hover:bg-room-hover"
-          aria-label="Meeting information"
-        >
-          <ShieldCheck size={18} />
-          <Info size={16} className="text-white/80" />
-        </button>
-        {infoOpen && <MeetingInfo meeting={meeting} participantId={self.id} />}
+        <div ref={infoRef}>
+          <button
+            onClick={() => setInfoOpen((open) => !open)}
+            className="flex items-center gap-1 rounded p-1.5 text-zoom-green hover:bg-room-hover"
+            aria-label="Meeting information"
+            aria-expanded={infoOpen}
+          >
+            <ShieldCheck size={18} />
+            <Info size={16} className="text-white/80" />
+          </button>
+          {infoOpen && <MeetingInfo meeting={meeting} participantId={self.id} />}
+        </div>
         <p className="truncate px-2 text-xs text-white/70">{meeting.title}</p>
         <p className="px-2 text-xs tabular-nums text-white/70">{elapsed(meeting.started_at, now)}</p>
       </header>
@@ -178,8 +221,11 @@ export function MeetingRoom({ meeting, self, hostKey, media, onExit }: MeetingRo
       )}
 
       <div className="relative flex min-h-0 flex-1">
-        <main className="min-w-0 flex-1" onClick={() => setInfoOpen(false)}>
+        <main className="min-w-0 flex-1">
           <VideoGrid tiles={tiles} presenter={presenter} />
+          {room.peers.map(({ participant, stream }) => (
+            <RemoteAudio key={participant.id} stream={stream} />
+          ))}
         </main>
 
         {panel === "participants" && (
@@ -189,6 +235,7 @@ export function MeetingRoom({ meeting, self, hostKey, media, onExit }: MeetingRo
             onClose={() => setPanel(null)}
             onInvite={copyInvite}
             onMute={(id) => hostAction((key) => api.muteParticipant(meeting.code, id, key))}
+            onMakeHost={makeHost}
             onRemove={(id) => hostAction((key) => api.removeParticipant(meeting.code, id, key))}
             onMuteAll={() => hostAction((key) => api.muteAll(meeting.code, key), "All participants have been muted")}
           />
@@ -216,18 +263,21 @@ export function MeetingRoom({ meeting, self, hostKey, media, onExit }: MeetingRo
         micOn={media.audioOn}
         videoOn={media.videoOn}
         canUseMic={media.hasAudio}
-        canUseVideo={media.hasVideo}
+        canUseVideo={media.canUseVideo}
+        micStream={media.stream}
         sharing={sharing}
         participantCount={tiles.length}
         unreadMessages={unread}
         activePanel={panel}
         isHost={isHost}
         onToggleMic={() => media.setAudioOn(!media.audioOn)}
-        onToggleVideo={() => media.setVideoOn(!media.videoOn)}
+        onToggleVideo={() => void media.setVideoOn(!media.videoOn)}
         onToggleShare={toggleShare}
         onTogglePanel={togglePanel}
         onReaction={room.sendReaction}
         onLeave={room.leave}
+        others={room.peers.map(({ participant: p }) => ({ id: p.id, name: p.display_name }))}
+        onAssignHostAndLeave={assignHostAndLeave}
         onEndForAll={() => hostAction((key) => api.endMeeting(meeting.code, key))}
       />
     </div>

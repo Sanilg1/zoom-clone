@@ -27,7 +27,7 @@ export function PreJoin({ meeting, media, defaultName, isHost, onJoin }: PreJoin
 
   const name = typedName ?? defaultName;
   // Wait until the browser has answered the camera/mic permission prompt.
-  const mediaReady = media.stream !== null || media.error !== null;
+  const mediaReady = media.ready;
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
@@ -75,8 +75,8 @@ export function PreJoin({ meeting, media, defaultName, isHost, onJoin }: PreJoin
             />
             <RoundToggle
               on={media.videoOn}
-              disabled={!media.hasVideo}
-              onClick={() => media.setVideoOn(!media.videoOn)}
+              disabled={!media.canUseVideo}
+              onClick={() => void media.setVideoOn(!media.videoOn)}
               label={media.videoOn ? "Stop Video" : "Start Video"}
               icon={media.videoOn ? <Video size={20} /> : <VideoOff size={20} />}
             />

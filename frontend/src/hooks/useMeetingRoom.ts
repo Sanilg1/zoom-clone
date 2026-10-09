@@ -24,6 +24,8 @@ interface Options {
   self: Participant;
   localStream: MediaStream | null;
   onMutedByHost: () => void;
+  /** We became host (new key) or stopped being host (null). */
+  onHostKey: (hostKey: string | null) => void;
   onExit: (reason: ExitReason) => void;
 }
 
@@ -39,7 +41,9 @@ function updatePeer(peers: Map<number, RemotePeer>, id: number, change: (peer: R
  * Everything live about the meeting: the WebSocket to the server, the WebRTC connections to the
  * other participants, the chat and the reactions.
  */
-export function useMeetingRoom({ code, self, localStream, onMutedByHost, onExit }: Options) {
+export function useMeetingRoom({ code, self, localStream, onMutedByHost, onHostKey, onExit }: Options) {
+  // Our own participant record; the server updates it (e.g. role changes when host is handed over).
+  const [selfParticipant, setSelfParticipant] = useState(self);
   const [peers, setPeers] = useState<Map<number, RemotePeer>>(new Map());
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [reactions, setReactions] = useState<Reaction[]>([]);
@@ -51,9 +55,9 @@ export function useMeetingRoom({ code, self, localStream, onMutedByHost, onExit 
   // The stream is chosen on the pre-join screen and does not change while in the room.
   const localStreamRef = useRef(localStream);
   // Latest callbacks, so the socket does not have to reconnect when the parent re-renders.
-  const callbacksRef = useRef({ onMutedByHost, onExit });
+  const callbacksRef = useRef({ onMutedByHost, onHostKey, onExit });
   useEffect(() => {
-    callbacksRef.current = { onMutedByHost, onExit };
+    callbacksRef.current = { onMutedByHost, onHostKey, onExit };
   });
 
   const exit = useCallback((reason: ExitReason) => {
@@ -94,7 +98,15 @@ export function useMeetingRoom({ code, self, localStream, onMutedByHost, onExit 
           setPeers((prev) => new Map(prev).set(event.participant.id, { participant: event.participant, stream: null }));
           break;
         case "participant-updated":
-          setPeers((prev) => updatePeer(prev, event.participant.id, (peer) => ({ ...peer, participant: event.participant })));
+          if (event.participant.id === self.id) {
+            setSelfParticipant(event.participant);
+            if (event.participant.role !== "host") callbacksRef.current.onHostKey(null);
+          } else {
+            setPeers((prev) => updatePeer(prev, event.participant.id, (peer) => ({ ...peer, participant: event.participant })));
+          }
+          break;
+        case "host-granted":
+          callbacksRef.current.onHostKey(event.host_key);
           break;
         case "participant-left":
           mesh.remove(event.participant_id);
@@ -155,6 +167,7 @@ export function useMeetingRoom({ code, self, localStream, onMutedByHost, onExit 
   );
 
   return {
+    self: selfParticipant,
     peers: [...peers.values()],
     messages,
     reactions,
