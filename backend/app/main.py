@@ -31,6 +31,11 @@ app.include_router(meetings.router)
 app.include_router(ws.router)
 
 
+@app.get("/", tags=["health"])
+def root() -> dict[str, str]:
+    return {"service": "Zoom Clone API", "docs": "/docs", "health": "/api/health"}
+
+
 @app.get("/api/health", tags=["health"])
 def health() -> dict[str, str]:
     return {"status": "ok"}
