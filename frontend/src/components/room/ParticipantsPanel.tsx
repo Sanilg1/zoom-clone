@@ -82,8 +82,9 @@ function ParticipantRow({ participant: p, canModerate, onMute, onMakeHost, onRem
       </span>
 
       {canModerate && (
-        // Shown on hover, like Zoom, and kept visible while the More menu is open.
-        <span className={`gap-1 ${menuOpen ? "flex" : "hidden group-hover:flex"}`}>
+        // Shown on hover with a mouse, like Zoom; always shown on touch screens (no hover there),
+        // and kept visible while the More menu is open.
+        <span className={`gap-1 ${menuOpen ? "flex" : "hidden group-hover:flex [@media(hover:none)]:flex"}`}>
           {p.micOn && (
             <button onClick={() => onMute(p.id)} className="rounded bg-zoom-blue px-2 py-0.5 text-xs font-bold">
               Mute
@@ -98,7 +99,7 @@ function ParticipantRow({ participant: p, canModerate, onMute, onMakeHost, onRem
           </button>
         </span>
       )}
-      <span className={`flex gap-2 ${canModerate ? (menuOpen ? "hidden" : "group-hover:hidden") : ""}`}>
+      <span className={`flex gap-2 ${canModerate ? (menuOpen ? "hidden" : "group-hover:hidden [@media(hover:none)]:hidden") : ""}`}>
         {p.micOn ? <Mic size={16} /> : <MicOff size={16} className="text-zoom-red" />}
         {p.videoOn ? <Video size={16} /> : <VideoOff size={16} className="text-zoom-red" />}
       </span>
