@@ -1,0 +1,16 @@
+# Render blueprint for the backend (the frontend is deployed on Vercel).
+services:
+  - type: web
+    name: zoom-clone-api
+    runtime: python
+    rootDir: backend
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    # One worker: meeting rooms (WebSocket connections) are kept in memory.
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /api/health
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.8
+      - key: FRONTEND_URL
+        sync: false

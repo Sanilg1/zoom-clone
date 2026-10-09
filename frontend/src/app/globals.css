@@ -1,0 +1,55 @@
+@import "tailwindcss";
+
+/* Zoom palette. Used as Tailwind colors, e.g. bg-zoom-blue, text-ink-muted. */
+@theme {
+  --color-zoom-blue: #0b5cff;
+  --color-zoom-blue-hover: #0a4fdc;
+  --color-zoom-blue-light: #e9f0ff;
+  --color-zoom-orange: #ff742e;
+  --color-zoom-orange-hover: #f2651d;
+  --color-zoom-red: #e02828;
+  --color-zoom-green: #23d959;
+
+  --color-ink: #232333; /* primary text */
+  --color-ink-muted: #6e7680; /* secondary text */
+  --color-line: #e4e6eb; /* borders */
+  --color-surface: #f7f8fa; /* page background */
+
+  /* In-meeting dark theme */
+  --color-room: #1a1a1a;
+  --color-room-tile: #2a2a2a;
+  --color-room-panel: #242424;
+  --color-room-hover: #3a3a3a;
+
+  --font-sans: var(--font-lato), "Helvetica Neue", Helvetica, Arial, sans-serif;
+
+  --animate-float-up: float-up 3s ease-out forwards;
+  @keyframes float-up {
+    0% { opacity: 0; transform: translateY(8px) scale(0.8); }
+    15% { opacity: 1; transform: translateY(0) scale(1); }
+    80% { opacity: 1; }
+    100% { opacity: 0; transform: translateY(-40px); }
+  }
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  background: var(--color-surface);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+}
+
+@layer components {
+  .input {
+    @apply h-10 w-full rounded-lg border border-line bg-white px-3 text-sm text-ink outline-none focus:border-zoom-blue;
+  }
+}
+
+/* Mirror the local camera preview like Zoom does. */
+.mirror {
+  transform: scaleX(-1);
+}

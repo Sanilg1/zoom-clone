@@ -1,0 +1,10 @@
+# Python
+backend/.venv/
+__pycache__/
+*.pyc
+
+# Local SQLite database (recreated and seeded on startup)
+backend/*.db
+
+.env
+.DS_Store
