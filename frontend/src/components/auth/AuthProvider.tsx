@@ -3,7 +3,8 @@
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
 
 import { api, ApiError, setUnauthorizedHandler } from "@/lib/api";
-import { authToken } from "@/lib/storage";
+import { DEMO_ACCOUNT } from "@/lib/config";
+import { authToken, signedOutFlag } from "@/lib/storage";
 import type { AuthResponse, User } from "@/lib/types";
 
 /** "error" = we have a token but the server could not be reached to check it. */
@@ -14,6 +15,7 @@ interface AuthContextValue {
   status: AuthStatus;
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (name: string, email: string, password: string) => Promise<void>;
+  signInDemo: () => Promise<void>;
   signOut: () => Promise<void>;
 }
 
@@ -32,6 +34,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const startSession = useCallback((response: AuthResponse) => {
     authToken.set(response.token);
+    signedOutFlag.clear();
     setUser(response.user);
     setStatus("signed-in");
   }, []);
@@ -65,7 +68,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [startSession],
   );
 
+  const signInDemo = useCallback(
+    () => signIn(DEMO_ACCOUNT.email, DEMO_ACCOUNT.password),
+    [signIn],
+  );
+
   const signOut = useCallback(async () => {
+    signedOutFlag.set();
     try {
       await api.signOut();
     } catch {
@@ -75,7 +84,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [clearSession]);
 
   return (
-    <AuthContext.Provider value={{ user, status, signIn, signUp, signOut }}>{children}</AuthContext.Provider>
+    <AuthContext.Provider value={{ user, status, signIn, signUp, signInDemo, signOut }}>{children}</AuthContext.Provider>
   );
 }
 

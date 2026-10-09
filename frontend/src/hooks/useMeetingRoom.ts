@@ -165,6 +165,10 @@ export function useMeetingRoom({ code, self, localStream, onMutedByHost, onHostK
     (track: MediaStreamTrack | null) => meshRef.current?.setOutgoingVideo(track) ?? Promise.resolve(),
     [],
   );
+  const setOutgoingAudio = useCallback(
+    (track: MediaStreamTrack | null) => meshRef.current?.setOutgoingAudio(track) ?? Promise.resolve(),
+    [],
+  );
 
   return {
     self: selfParticipant,
@@ -177,5 +181,6 @@ export function useMeetingRoom({ code, self, localStream, onMutedByHost, onHostK
     sendReaction,
     sendMediaState,
     setOutgoingVideo,
+    setOutgoingAudio,
   };
 }

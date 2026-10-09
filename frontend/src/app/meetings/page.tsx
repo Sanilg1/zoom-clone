@@ -5,9 +5,9 @@ import { useState, type ReactNode } from "react";
 
 import { useAuth } from "@/components/auth/AuthProvider";
 import { RequireAuth } from "@/components/auth/RequireAuth";
-import { Navbar } from "@/components/layout/Navbar";
+import { AppHeader } from "@/components/layout/AppHeader";
 import { MeetingDetails } from "@/components/meetings/MeetingDetails";
-import { ScheduleMeetingModal } from "@/components/meetings/ScheduleMeetingModal";
+import { MeetingDialogs, type MeetingDialog } from "@/components/meetings/MeetingDialogs";
 import { useDashboardMeetings } from "@/hooks/useDashboardMeetings";
 import { useNow } from "@/hooks/useNow";
 import { useResetOnHide } from "@/hooks/useResetOnHide";
@@ -31,11 +31,11 @@ function MeetingsTab() {
   const { user } = useAuth();
   const now = useNow(60_000);
   const { upcoming, recent, loading, error, reload } = useDashboardMeetings();
-  const { enterAsHost } = useStartMeeting();
+  const { enterAsHost, startInstantMeeting } = useStartMeeting();
   const [tab, setTab] = useState<Tab>("upcoming");
   const [selectedCode, setSelectedCode] = useState<string | null>(null);
-  const [scheduling, setScheduling] = useState(false);
-  useResetOnHide(() => setScheduling(false));
+  const [dialog, setDialog] = useState<MeetingDialog>(null);
+  useResetOnHide(() => setDialog(null));
 
   const list: Meeting[] = tab === "upcoming" ? upcoming : recent;
   const selected = list.find((m) => m.code === selectedCode) ?? list[0] ?? null;
@@ -54,7 +54,11 @@ function MeetingsTab() {
 
   return (
     <div className="flex h-dvh flex-col">
-      <Navbar user={user} />
+      <AppHeader
+        onNewMeeting={startInstantMeeting}
+        onJoin={() => setDialog("join")}
+        onSchedule={() => setDialog("schedule")}
+      />
 
       <div className="mx-auto flex min-h-0 w-full max-w-[1280px] flex-1 flex-col md:flex-row">
         <aside className="flex min-h-0 flex-col border-line bg-white md:w-[340px] md:border-r">
@@ -64,7 +68,7 @@ function MeetingsTab() {
               <IconButton label="Refresh" onClick={reload}>
                 <RotateCw size={17} />
               </IconButton>
-              <IconButton label="Schedule a meeting" onClick={() => setScheduling(true)}>
+              <IconButton label="Schedule a meeting" onClick={() => setDialog("schedule")}>
                 <Plus size={19} />
               </IconButton>
             </div>
@@ -130,17 +134,16 @@ function MeetingsTab() {
         </main>
       </div>
 
-      {scheduling && (
-        <ScheduleMeetingModal
-          hostName={user?.name ?? "My"}
-          onClose={() => setScheduling(false)}
-          onScheduled={(meeting) => {
-            setTab("upcoming");
-            setSelectedCode(meeting.code);
-            void reload();
-          }}
-        />
-      )}
+      <MeetingDialogs
+        dialog={dialog}
+        userName={user?.name}
+        onClose={() => setDialog(null)}
+        onScheduled={(meeting) => {
+          setTab("upcoming");
+          setSelectedCode(meeting.code);
+          void reload();
+        }}
+      />
     </div>
   );
 }

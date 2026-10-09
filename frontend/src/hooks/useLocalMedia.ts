@@ -7,6 +7,12 @@ export interface LocalMedia {
   stream: MediaStream | null;
   /** The live camera track, or null while video is off. */
   videoTrack: MediaStreamTrack | null;
+  audioTrack: MediaStreamTrack | null;
+  devices: { microphones: MediaDeviceInfo[]; cameras: MediaDeviceInfo[] };
+  microphoneId: string | undefined;
+  cameraId: string | undefined;
+  switchMicrophone: (deviceId: string) => Promise<void>;
+  switchCamera: (deviceId: string) => Promise<void>;
   audioOn: boolean;
   videoOn: boolean;
   hasAudio: boolean;
@@ -90,6 +96,9 @@ export function useLocalMedia(enabled: boolean, initial: { audio: boolean; video
   const [warning, setWarning] = useState<string | null>(null);
   const [audioOn, setAudioOn] = useState(initial.audio);
   const [, setDeviceChange] = useState(0); // bumped when a device stops, to re-render
+  const [devices, setDevices] = useState<LocalMedia["devices"]>({ microphones: [], cameras: [] });
+  // Camera chosen in settings while video was off; used the next time video starts.
+  const [preferredCameraId, setPreferredCameraId] = useState<string | null>(null);
 
   // Latest tracks, so cleanup and the "ended" handler can reach them without re-running effects.
   const videoRef = useRef<MediaStreamTrack | null>(null);
@@ -119,6 +128,25 @@ export function useLocalMedia(enabled: boolean, initial: { audio: boolean; video
     [onTrackEnded],
   );
 
+  // Device names are only visible after permission is granted, so list them after opening.
+  const refreshDevices = useCallback(async () => {
+    try {
+      const list = await navigator.mediaDevices.enumerateDevices();
+      setDevices({
+        microphones: list.filter((d) => d.kind === "audioinput" && d.deviceId),
+        cameras: list.filter((d) => d.kind === "videoinput" && d.deviceId),
+      });
+    } catch {
+      // keep the previous list
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!enabled || !navigator.mediaDevices) return;
+    navigator.mediaDevices.addEventListener("devicechange", refreshDevices);
+    return () => navigator.mediaDevices.removeEventListener("devicechange", refreshDevices);
+  }, [enabled, refreshDevices]);
+
   // Open the devices when enabled; release everything when disabled or unmounted.
   useEffect(() => {
     if (!enabled) return;
@@ -139,6 +167,7 @@ export function useLocalMedia(enabled: boolean, initial: { audio: boolean; video
         setWarning(result.warning);
         setError(null);
         setReady(true);
+        void refreshDevices();
       })
       .catch((err: Error) => {
         if (cancelled) return;
@@ -156,7 +185,7 @@ export function useLocalMedia(enabled: boolean, initial: { audio: boolean; video
       setVideoTrack(null);
       setReady(false);
     };
-  }, [enabled, adoptVideo, onTrackEnded]);
+  }, [enabled, adoptVideo, onTrackEnded, refreshDevices]);
 
   const setVideoOn = useCallback(
     async (on: boolean) => {
@@ -169,7 +198,10 @@ export function useLocalMedia(enabled: boolean, initial: { audio: boolean; video
       if (videoRef.current || startingVideo) return;
       setStartingVideo(true);
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({ video: VIDEO_CONSTRAINTS });
+        const camera = preferredCameraId;
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: camera ? { ...VIDEO_CONSTRAINTS, deviceId: { exact: camera } } : VIDEO_CONSTRAINTS,
+        });
         adoptVideo(stream.getVideoTracks()[0]);
         setWarning(null);
       } catch {
@@ -178,7 +210,43 @@ export function useLocalMedia(enabled: boolean, initial: { audio: boolean; video
         setStartingVideo(false);
       }
     },
-    [adoptVideo, startingVideo],
+    [adoptVideo, startingVideo, preferredCameraId],
+  );
+
+  const switchMicrophone = useCallback(
+    async (deviceId: string) => {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: { deviceId: { exact: deviceId } } });
+        const track = stream.getAudioTracks()[0];
+        audioRef.current?.stop();
+        audioRef.current = track;
+        track.addEventListener("ended", onTrackEnded);
+        setAudioTrack(track); // the mute effect below applies the current mute state to it
+        setWarning(null);
+      } catch {
+        setWarning("That microphone could not be started.");
+      }
+    },
+    [onTrackEnded],
+  );
+
+  const switchCamera = useCallback(
+    async (deviceId: string) => {
+      setPreferredCameraId(deviceId);
+      const current = videoRef.current;
+      if (!current) return; // video is off: used next time it starts
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { ...VIDEO_CONSTRAINTS, deviceId: { exact: deviceId } },
+        });
+        adoptVideo(stream.getVideoTracks()[0]);
+        current.stop();
+        setWarning(null);
+      } catch {
+        setWarning("That camera could not be started. Check that no other app is using it.");
+      }
+    },
+    [adoptVideo],
   );
 
   const hasAudio = audioTrack?.readyState === "live";
@@ -197,6 +265,12 @@ export function useLocalMedia(enabled: boolean, initial: { audio: boolean; video
   return {
     stream,
     videoTrack,
+    audioTrack,
+    devices,
+    microphoneId: audioTrack?.getSettings().deviceId,
+    cameraId: videoTrack?.getSettings().deviceId ?? preferredCameraId ?? undefined,
+    switchMicrophone,
+    switchCamera,
     audioOn: effectiveAudioOn,
     videoOn: videoTrack !== null,
     hasAudio,

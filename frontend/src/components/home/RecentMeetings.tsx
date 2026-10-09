@@ -1,4 +1,5 @@
 import { Clock, Users } from "lucide-react";
+import Link from "next/link";
 
 import { CopyButton } from "@/components/ui/CopyButton";
 import { formatDate, formatDuration, formatMeetingCode, formatTime } from "@/lib/format";
@@ -18,7 +19,12 @@ function actualMinutes(meeting: Meeting): number {
 export function RecentMeetings({ meetings, loading }: RecentMeetingsProps) {
   return (
     <section className="rounded-2xl border border-line bg-white shadow-sm">
-      <h2 className="border-b border-line px-5 py-3.5 text-[15px] font-bold">Recent meetings</h2>
+      <header className="flex items-center justify-between border-b border-line px-5 py-3.5">
+        <h2 className="text-[15px] font-bold">Recent meetings</h2>
+        <Link href="/meetings" className="text-sm font-bold text-zoom-blue hover:underline">
+          View all
+        </Link>
+      </header>
       {loading ? (
         <p className="p-6 text-center text-sm text-ink-muted">Loading…</p>
       ) : meetings.length === 0 ? (
@@ -33,10 +39,10 @@ export function RecentMeetings({ meetings, loading }: RecentMeetingsProps) {
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-bold">{meeting.title}</p>
                 <p className="text-xs text-ink-muted">
-                  {formatDate(meeting.ended_at ?? meeting.start_time)},{" "}
-                  {formatTime(meeting.started_at ?? meeting.start_time)} ·{" "}
-                  {formatDuration(actualMinutes(meeting))} · ID {formatMeetingCode(meeting.code)}
+                  {formatDate(meeting.ended_at ?? meeting.start_time)}, {formatTime(meeting.started_at ?? meeting.start_time)} ·{" "}
+                  {formatDuration(actualMinutes(meeting))}
                 </p>
+                <p className="text-xs text-ink-muted">ID {formatMeetingCode(meeting.code)}</p>
               </div>
               <span className="hidden items-center gap-1 text-xs text-ink-muted sm:flex" title="Participants">
                 <Users size={14} /> {meeting.participant_count}

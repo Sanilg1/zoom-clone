@@ -1,7 +1,7 @@
 "use client";
 
 import { MicOff } from "lucide-react";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, type CSSProperties } from "react";
 
 import { MicLevelIcon } from "@/components/ui/icons";
 import { SPEAKING_LEVEL, useAudioLevel } from "@/hooks/useAudioLevel";
@@ -23,12 +23,19 @@ interface VideoTileProps {
   forceVideo?: boolean;
   fit?: "cover" | "contain";
   className?: string;
+  style?: CSSProperties;
+  /** Called when this (remote) participant starts speaking; drives Speaker view. */
+  onSpeaking?: (participantId: number) => void;
 }
 
-export function VideoTile({ tile, forceVideo = false, fit = "cover", className = "" }: VideoTileProps) {
+export function VideoTile({ tile, forceVideo = false, fit = "cover", className = "", style, onSpeaking }: VideoTileProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const level = useAudioLevel(tile.stream, tile.micOn);
   const speaking = level >= SPEAKING_LEVEL;
+
+  useEffect(() => {
+    if (speaking && !tile.isSelf) onSpeaking?.(tile.id);
+  }, [speaking, onSpeaking, tile.id, tile.isSelf]);
   const showVideo = forceVideo || tile.videoOn;
 
   useEffect(() => {
@@ -38,6 +45,7 @@ export function VideoTile({ tile, forceVideo = false, fit = "cover", className =
 
   return (
     <div
+      style={style}
       className={`relative overflow-hidden rounded-lg bg-room-tile ring-inset transition-shadow ${
         speaking ? "ring-[3px] ring-zoom-green" : ""
       } ${className}`}

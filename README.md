@@ -11,18 +11,20 @@ reactions, screen sharing and host controls.
 
 ## Features
 
-**Demo account:** `sanil@zoomclone.dev` / `zoomdemo123` (or click **Use demo account** on the sign-in page).
+**No login needed to try it:** as the brief asks, a first visit signs in automatically as the demo user
+(`sanil@zoomclone.dev` / `zoomdemo123`). After **Sign out** you get the sign-in page, where you can sign in again,
+use **Use demo account**, or create your own account.
 You can also create your own account. Joining a meeting from an invite link does not need an account.
 
 | Area | What works |
 |---|---|
-| Sign in / sign up (bonus) | Create an account (name, email, password) or sign in; the dashboard and Meetings tab need an account, joining a meeting does not; sign out from the profile menu |
-| Home dashboard | Zoom-style top bar (Home / Meetings tabs, search, settings, profile menu), the four action tiles (New meeting, Join, Schedule, Share screen), clock card with upcoming meetings, recent meetings |
+| Sign in / sign up (bonus) | Create an account (name, email, password) or sign in; the dashboard and Meetings tab need an account (the demo user is signed in automatically), joining a meeting does not; sign out from the profile menu |
+| Home dashboard | Follows Zoom's 2026 web layout: a universal header (logo, Home, search, **+** menu for New meeting / Join / Schedule, product menu behind the grid icon, profile menu), a greeting with date and time, quick shortcuts (New meeting, Join, Schedule, Share screen), upcoming meetings grouped by day, recent meetings |
 | Instant meeting | One click creates a meeting with a unique 11-digit ID and an invite link (`/j/<id>`), then opens the room as host |
 | Join meeting | By meeting ID (`845 1234 5678`, with or without spaces) or by pasting the invite link; display name required; the meeting's existence is checked before joining; options to join muted or with video off |
 | Schedule meeting | Topic, description, date and time pickers, duration, time zone; the meeting ID and link are generated and saved, and the meeting appears under Upcoming with Start / Copy invitation / Delete |
 | Meetings tab | Upcoming and Previous lists with a details pane and the full invitation text |
-| Meeting room | Camera/mic preview before joining, gallery view, live video and audio between participants, mute (mic icon shows your live voice level) / stop video (releases the camera), speaking highlight, participants panel, chat with unread badge, reactions, screen share (presenter layout), meeting info popover, elapsed timer; menus close on an outside click or Escape |
+| Meeting room | Camera/mic preview before joining; live video and audio between participants; **View** menu (top right) for Gallery or **Speaker** view (the person talking fills the stage); mute (mic icon shows your live voice level) / stop video (releases the camera); a **^** next to Mute and Video opens an Audio & video panel to switch microphone or camera; speaking highlight; participants panel; chat with unread badge; reactions; screen share (presenter layout); **More** menu (Invite, Meeting info, switch view, settings); meeting info; elapsed timer; menus close on an outside click or Escape |
 | Device problems | If the camera or mic can't start, you join with whichever device works and see why; if a device stops mid-meeting (unplugged, taken by another app) a banner appears and others see your name instead of a frozen tile |
 | Host controls (bonus) | Mute a participant, mute all, remove a participant, **make another participant host**, end the meeting for everyone; a host who leaves while others stay picks a new host first ("Assign and Leave") |
 | Responsive (bonus) | Dashboard, meetings tab and meeting room adapt to phone, tablet and desktop widths |
@@ -121,7 +123,8 @@ frontend/src/
     home/            action tiles, upcoming and recent meeting cards
     meetings/        join form/modal, schedule modal, meeting details
     room/            pre-join, meeting room, video grid/tile, control bar, chat, participants, end screen
-    layout/, ui/     navbar, buttons, modal, avatar, icons
+    layout/          the universal header (+ menu, product menu, profile)
+    ui/              buttons, modal, avatar, icons
   hooks/             data fetching, local media, meeting room (WebSocket + WebRTC), screen share, …
   lib/               API client, types, formatting, storage, PeerMesh (WebRTC connections)
 ```
@@ -188,6 +191,9 @@ Looking up and joining a meeting work without it.
 
 ## Assumptions and limitations
 
+- **The UI follows Zoom's 2026 redesign** as described in Zoom's announcements and university IT guides (universal
+  header with a product menu, + menu, View menu, More menu, settings panel). Products that are not part of this
+  assignment (Team Chat, Docs, Whiteboards, Calendar) appear greyed out in the product menu.
 - **Sign-in uses a bearer token**, not a cookie: the frontend and backend are on different domains (Vercel and
   Render), and browsers increasingly block cookies across sites. The token is kept in `localStorage`. There is no
   password reset or email verification.

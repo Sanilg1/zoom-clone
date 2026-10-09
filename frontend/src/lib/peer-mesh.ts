@@ -55,12 +55,16 @@ export class PeerMesh {
     });
   }
 
-  /** Swap what we send as video (camera ⇄ screen share) on every connection. */
+  /** Swap what we send as video (camera on/off, another camera, screen share) on every connection. */
   async setOutgoingVideo(track: MediaStreamTrack | null): Promise<void> {
     this.outgoingVideo = track;
-    await Promise.all(
-      [...this.connections.values()].map((pc) => this.videoTransceiver(pc)?.sender.replaceTrack(track)),
-    );
+    await this.replaceOnAll("video", track);
+  }
+
+  /** Swap what we send as audio (e.g. after choosing another microphone) on every connection. */
+  async setOutgoingAudio(track: MediaStreamTrack | null): Promise<void> {
+    this.outgoingAudio = track;
+    await this.replaceOnAll("audio", track);
   }
 
   remove(peerId: number): void {
@@ -131,8 +135,12 @@ export class PeerMesh {
     );
   }
 
-  private videoTransceiver(pc: RTCPeerConnection) {
-    return pc.getTransceivers().find((t) => t.receiver.track.kind === "video");
+  private async replaceOnAll(kind: "audio" | "video", track: MediaStreamTrack | null) {
+    await Promise.all(
+      [...this.connections.values()].map((pc) =>
+        pc.getTransceivers().find((t) => t.receiver.track.kind === kind)?.sender.replaceTrack(track),
+      ),
+    );
   }
 
   private enqueue(peerId: number, task: () => Promise<void>) {

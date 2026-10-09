@@ -16,7 +16,9 @@ import { ControlBar } from "./ControlBar";
 import { MeetingInfo } from "./MeetingInfo";
 import { ParticipantsPanel, type PanelParticipant } from "./ParticipantsPanel";
 import { RemoteAudio } from "./RemoteAudio";
-import { VideoGrid } from "./VideoGrid";
+import { SettingsPanel } from "./SettingsPanel";
+import { VideoGrid, type RoomView } from "./VideoGrid";
+import { ViewMenu } from "./ViewMenu";
 import type { TileData } from "./VideoTile";
 
 interface MeetingRoomProps {
@@ -28,7 +30,7 @@ interface MeetingRoomProps {
   onExit: (reason: ExitReason) => void;
 }
 
-type Panel = "participants" | "chat" | null;
+type Panel = "participants" | "chat" | "settings" | null;
 
 function elapsed(since: string | null, now: Date | null): string {
   if (!since || !now) return "";
@@ -75,6 +77,16 @@ export function MeetingRoom({ meeting, self: joinedAs, hostKey, media, onHostKey
 
   // Send the camera to everyone (or nothing while it is off). Screen sharing takes over the
   // outgoing video while it runs; when it stops, this puts the camera back.
+  // Same for the microphone (it changes when another one is picked in Audio & video settings).
+  const { setOutgoingAudio } = room;
+  useEffect(() => {
+    void setOutgoingAudio(media.audioTrack);
+  }, [media.audioTrack, setOutgoingAudio]);
+
+  const [view, setView] = useState<RoomView>("gallery");
+  // Last remote participant heard speaking: the big tile in Speaker view.
+  const [activeSpeakerId, setActiveSpeakerId] = useState<number | null>(null);
+
   const { setOutgoingVideo } = room;
   useEffect(() => {
     if (!sharing) void setOutgoingVideo(media.videoTrack);
@@ -139,6 +151,11 @@ export function MeetingRoom({ meeting, self: joinedAs, hostKey, media, onHostKey
 
   // ---------- actions ----------
 
+  function openSettings() {
+    if (panel === "chat") setSeenMessages(messagesFromOthers);
+    setPanel("settings");
+  }
+
   function togglePanel(next: "participants" | "chat") {
     if (panel === "chat") setSeenMessages(messagesFromOthers);
     setPanel((current) => (current === next ? null : next));
@@ -188,21 +205,27 @@ export function MeetingRoom({ meeting, self: joinedAs, hostKey, media, onHostKey
 
   return (
     <div className="flex h-dvh flex-col overflow-hidden bg-room text-white">
-      <header className="relative flex h-10 shrink-0 items-center justify-between px-2">
-        <div ref={infoRef}>
-          <button
-            onClick={() => setInfoOpen((open) => !open)}
-            className="flex items-center gap-1 rounded p-1.5 text-zoom-green hover:bg-room-hover"
-            aria-label="Meeting information"
-            aria-expanded={infoOpen}
-          >
-            <ShieldCheck size={18} />
-            <Info size={16} className="text-white/80" />
-          </button>
-          {infoOpen && <MeetingInfo meeting={meeting} participantId={self.id} />}
+      {/* 2026 layout: title on the left; meeting details and View in the upper right. */}
+      <header className="relative flex h-10 shrink-0 items-center justify-between gap-2 px-3">
+        <div className="flex min-w-0 items-center gap-2 text-xs text-white/70">
+          <ShieldCheck size={16} className="shrink-0 text-zoom-green" aria-label="Encrypted" />
+          <span className="truncate">{meeting.title}</span>
+          <span className="shrink-0 tabular-nums">{elapsed(meeting.started_at, now)}</span>
         </div>
-        <p className="truncate px-2 text-xs text-white/70">{meeting.title}</p>
-        <p className="px-2 text-xs tabular-nums text-white/70">{elapsed(meeting.started_at, now)}</p>
+        <div className="flex shrink-0 items-center gap-1">
+          <div ref={infoRef} className="relative">
+            <button
+              onClick={() => setInfoOpen((open) => !open)}
+              className={`rounded-md p-1.5 text-white/80 hover:bg-room-hover ${infoOpen ? "bg-room-hover" : ""}`}
+              aria-label="Meeting information"
+              aria-expanded={infoOpen}
+            >
+              <Info size={17} />
+            </button>
+            {infoOpen && <MeetingInfo meeting={meeting} participantId={self.id} />}
+          </div>
+          <ViewMenu view={view} onChange={setView} />
+        </div>
       </header>
 
       {media.warning && (
@@ -222,7 +245,13 @@ export function MeetingRoom({ meeting, self: joinedAs, hostKey, media, onHostKey
 
       <div className="relative flex min-h-0 flex-1">
         <main className="min-w-0 flex-1">
-          <VideoGrid tiles={tiles} presenter={presenter} />
+          <VideoGrid
+            tiles={tiles}
+            presenter={presenter}
+            view={view}
+            activeSpeakerId={activeSpeakerId}
+            onSpeaking={setActiveSpeakerId}
+          />
           {room.peers.map(({ participant, stream }) => (
             <RemoteAudio key={participant.id} stream={stream} />
           ))}
@@ -240,6 +269,7 @@ export function MeetingRoom({ meeting, self: joinedAs, hostKey, media, onHostKey
             onMuteAll={() => hostAction((key) => api.muteAll(meeting.code, key), "All participants have been muted")}
           />
         )}
+        {panel === "settings" && <SettingsPanel media={media} onClose={() => setPanel(null)} />}
         {panel === "chat" && (
           <ChatPanel
             messages={room.messages}
@@ -279,6 +309,11 @@ export function MeetingRoom({ meeting, self: joinedAs, hostKey, media, onHostKey
         others={room.peers.map(({ participant: p }) => ({ id: p.id, name: p.display_name }))}
         onAssignHostAndLeave={assignHostAndLeave}
         onEndForAll={() => hostAction((key) => api.endMeeting(meeting.code, key))}
+        onOpenSettings={openSettings}
+        view={view}
+        onToggleView={() => setView((v) => (v === "gallery" ? "speaker" : "gallery"))}
+        onInvite={copyInvite}
+        onShowInfo={() => setInfoOpen(true)}
       />
     </div>
   );
